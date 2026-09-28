@@ -25,12 +25,39 @@ if ("serviceWorker" in navigator) {
 <script>
 (function(){
   const qs = window.location.search;
-  if (!qs) return;
   const f = document.querySelector('iframe');
-  if (!f) return;
+  if (!f || !qs) return;
+
+  // 1) Tetap teruskan query ke iframe sebagai jalur utama.
   const base = f.getAttribute('src') || '';
   const sep = base.includes('?') ? '&' : '?';
   f.src = base + sep + qs.slice(1);
+
+  // 2) Kirim juga hasil biometric lewat postMessage setelah iframe siap.
+  //    Ini menjadi jalur cadangan sehingga auto-login tidak bergantung
+  //    pada query parameter Apps Script.
+  const p = new URLSearchParams(qs);
+  const handoff = p.get('handoff') || '';
+  const payload = p.get('payload') || '';
+
+  if (p.get('ks_bio_bridge') === '1' && handoff && payload) {
+    const send = function(){
+      try {
+        f.contentWindow.postMessage({
+          type: 'KS_BIO_BRIDGE_RESULT',
+          handoff: handoff,
+          payload: payload
+        }, '*');
+      } catch(e) {}
+    };
+
+    f.addEventListener('load', function(){
+      setTimeout(send, 150);
+    }, {once:false});
+
+    setTimeout(send, 700);
+    setTimeout(send, 1600);
+  }
 })();
 </script>
 </body>
