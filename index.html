@@ -24,40 +24,58 @@ if ("serviceWorker" in navigator) {
 }
 <script>
 (function(){
-  const qs = window.location.search;
-  const f = document.querySelector('iframe');
-  if (!f || !qs) return;
+  const KEY='KS_BIO_BRIDGE_RESULT_V54';
+  const f=document.querySelector('iframe');
+  if(!f)return;
 
-  // 1) Tetap teruskan query ke iframe sebagai jalur utama.
-  const base = f.getAttribute('src') || '';
-  const sep = base.includes('?') ? '&' : '?';
-  f.src = base + sep + qs.slice(1);
-
-  // 2) Kirim juga hasil biometric lewat postMessage setelah iframe siap.
-  //    Ini menjadi jalur cadangan sehingga auto-login tidak bergantung
-  //    pada query parameter Apps Script.
-  const p = new URLSearchParams(qs);
-  const handoff = p.get('handoff') || '';
-  const payload = p.get('payload') || '';
-
-  if (p.get('ks_bio_bridge') === '1' && handoff && payload) {
-    const send = function(){
-      try {
-        f.contentWindow.postMessage({
-          type: 'KS_BIO_BRIDGE_RESULT',
-          handoff: handoff,
-          payload: payload
-        }, '*');
-      } catch(e) {}
-    };
-
-    f.addEventListener('load', function(){
-      setTimeout(send, 150);
-    }, {once:false});
-
-    setTimeout(send, 700);
-    setTimeout(send, 1600);
+  function getRelay(){
+    try{
+      const raw=localStorage.getItem(KEY);
+      if(raw){
+        const x=JSON.parse(raw);
+        if(x&&x.handoff&&x.payload)return x;
+      }
+    }catch(e){}
+    const p=new URLSearchParams(window.location.search||'');
+    if(p.get('ks_bio_bridge')==='1'&&p.get('handoff')&&p.get('payload')){
+      return {handoff:p.get('handoff'),payload:p.get('payload')};
+    }
+    return null;
   }
+
+  const relay=getRelay();
+  if(!relay)return;
+
+  const base=f.getAttribute('src')||'';
+  const sep=base.includes('?')?'&':'?';
+  // Query tetap menjadi jalur pertama agar doGet Apps Script dapat langsung
+  // menyuntikkan hasil bridge ke HTML iframe.
+  f.src=base+sep+'ks_bio_bridge=1&handoff='+encodeURIComponent(relay.handoff)+'&payload='+encodeURIComponent(relay.payload);
+
+  function send(){
+    try{
+      f.contentWindow.postMessage({
+        type:'KS_BIO_BRIDGE_RESULT',
+        handoff:relay.handoff,
+        payload:relay.payload
+      },'*');
+    }catch(e){}
+  }
+
+  f.addEventListener('load',function(){
+    setTimeout(send,100);
+    setTimeout(send,500);
+    setTimeout(send,1500);
+  });
+
+  setTimeout(send,1000);
+  setTimeout(send,2500);
+
+  // Jangan langsung menghapus relay. Biarkan tersedia beberapa detik jika
+  // iframe Apps Script terlambat selesai memuat.
+  setTimeout(function(){
+    try{localStorage.removeItem(KEY);}catch(e){}
+  },15000);
 })();
 </script>
 </body>
