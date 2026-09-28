@@ -22,6 +22,16 @@ iframe{display:block;width:100%;height:100%;border:0}
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
+<script>
+(function(){
+  const qs = window.location.search;
+  if (!qs) return;
+  const f = document.querySelector('iframe');
+  if (!f) return;
+  const base = f.getAttribute('src') || '';
+  const sep = base.includes('?') ? '&' : '?';
+  f.src = base + sep + qs.slice(1);
+})();
 </script>
 </body>
 </html>
